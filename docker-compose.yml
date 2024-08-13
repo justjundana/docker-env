@@ -1,0 +1,113 @@
+version: "3.9"
+
+services:
+  mysql:
+    image: mysql:8.0.37
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+    command: [ 
+      "--log_bin_trust_function_creators=1",
+      "--max_allowed_packet=1000000000",
+    ]
+    ports:
+      - 3306:3306
+    volumes:
+      - db_mysql:/var/lib/mysql
+      - ./db_bak:/db_bak
+    restart: always
+
+  mongo:
+    image: mongo:latest
+    ports:
+      - 27017:27017
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
+    restart: always
+    volumes:
+      - db_mongo:/data/db
+
+  redis:
+    image: redis
+    ports:
+      - 6379:6379
+    restart: always
+    volumes:
+      - db_redis:/data
+
+  postgres:
+    image: postgres:latest
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+    restart: always
+    volumes:
+      - db_postgres:/var/lib/postgresql/data
+
+  adminer:
+    image: adminer:latest
+    ports:
+      - 8080:8080
+    links:
+      - mysql
+    restart: always
+    environment:
+      - ADMINER_DEFAULT_SERVER=mysql
+
+  prometheus:
+    user: root
+    image: prom/prometheus:v2.32.1
+    ports:
+      - 9090:9090
+    volumes:
+      - ./etc/prometheus/:/etc/prometheus/
+      - ./var/prometheus/prometheus_data:/prometheus
+      - ./prometheus-custom.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.enable-lifecycle"
+    profiles:
+      - prometheus
+
+  grafana:
+    user: root
+    image: grafana/grafana
+    ports:
+      - 3000:3000
+    volumes:
+      - ./var/grafana/grafana_data:/var/lib/grafana
+      - ./etc/grafana/provisioning/:/etc/grafana/provisioning/
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    profiles:
+      - grafana
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.39
+    restart: always
+    ports:
+      - 16686:16686
+      - 4317:4317
+      - 4318:4318
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+
+  sftp:
+    image: emberstack/sftp
+    restart: always
+    ports:
+      - "2222:22"
+    volumes:
+      - ./config/docker/sftp.json:/app/config/sftp.json:ro
+
+volumes:
+  db_mongo:
+  db_mysql:
+  db_redis:
+  db_postgres:
